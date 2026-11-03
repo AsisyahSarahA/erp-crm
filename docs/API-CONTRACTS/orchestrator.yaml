@@ -1,0 +1,231 @@
+openapi: 3.1.0
+info:
+  title: ASTACODE Orchestrator Service API
+  description: Event Bus, Saga Orchestration (Deal-Won Handover), and Automation Rule Engine.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8008/api
+    description: Orchestrator Service Local Direct
+  - url: http://localhost:8000/api/v1/orchestrator
+    description: Via Gateway Proxy
+
+paths:
+  /internal/events:
+    post:
+      summary: Ingest Internal Domain Event
+      description: Endpoint dipanggil oleh transactional outbox relay dari microservice produsen.
+      headers:
+        X-Service-Signature:
+          schema:
+            type: string
+          required: true
+        X-Correlation-Id:
+          schema:
+            type: string
+          required: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_name, payload]
+              properties:
+                event_name:
+                  type: string
+                  example: deal.won
+                producer_service:
+                  type: string
+                  example: crm-service
+                event_id:
+                  type: string
+                  example: 01HQ7DEAL890...
+                payload:
+                  type: object
+      responses:
+        '200':
+          description: Event diterima dan diproses idempoten.
+
+  /sagas:
+    get:
+      summary: List all Sagas
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, IN_PROGRESS, COMPLETED, PARTIAL, FAILED, COMPENSATING, COMPENSATED]
+      responses:
+        '200':
+          description: List sagas dengan ringkasan status.
+
+  /sagas/{id}:
+    get:
+      summary: Get Saga Details & Step Status
+      description: Handover Tracker & Project Transition Hub (FR-CRM-22)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: State machine saga dengan detail 4 langkah dan status Kickoff Gate (FR-CRM-23).
+
+  /sagas/{id}/retry-step/{stepOrder}:
+    post:
+      summary: Retry Handover Step
+      description: Mencoba kembali langkah handover tertentu yang mengalami kegagalan.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: stepOrder
+          in: path
+          required: true
+          schema:
+            type: integer
+            enum: [1, 2, 3, 4]
+      responses:
+        '200':
+          description: Langkah berhasil diproses ulang.
+
+  /sagas/{id}/readiness:
+    post:
+      summary: Update Kickoff Readiness Check
+      description: Memperbarui checklist kesiapan kickoff (DP Lunas, Kontrak Ditandatangani, Scope Terkunci).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dp_paid:
+                  type: boolean
+                contract_signed:
+                  type: boolean
+                scope_locked:
+                  type: boolean
+      responses:
+        '200':
+          description: Readiness check updated.
+
+  /sagas/{id}/waive-kickoff:
+    post:
+      summary: Waive Kickoff Gate (FR-CRM-23)
+      description: Memberikan dispensasi kickoff oleh Direktur Utama bila DP belum lunas namun proyek harus segera jalan.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Kickoff Gate waived.
+
+  /sagas/{id}/compensate:
+    post:
+      summary: Manual Saga Compensation
+      description: Membatalkan proyek dan membatalkan jadwal piutang bila deal dibatalkan sebelum kickoff.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Saga compensated.
+
+  /automation-rules:
+    get:
+      summary: List Automation Rules
+    post:
+      summary: Create Automation Rule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, trigger_type, conditions, actions]
+              properties:
+                name:
+                  type: string
+                trigger_type:
+                  type: string
+                  enum: [event, idle, overdue, cron]
+                trigger_event:
+                  type: string
+                conditions:
+                  type: object
+                  description: JSON-logic condition tree
+                actions:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '201':
+          description: Rule created.
+
+  /automation-rules/{id}/trigger:
+    post:
+      summary: Test Run Automation Rule
+      description: Menjalankan simulasi aturan otomasi dengan payload pengujian.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Test execution result.
+
+  /events/dead-letters:
+    get:
+      summary: List Dead-Letter Events
+      responses:
+        '200':
+          description: Daftar event yang gagal terkirim setelah 5x percobaan.
+
+  /events/{id}/replay:
+    post:
+      summary: Replay Dead-Letter Event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Event replayed.
+

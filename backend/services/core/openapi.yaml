@@ -1,0 +1,137 @@
+openapi: 3.1.0
+info:
+  title: ASTACODE Core Service API
+  description: Foundation Microservice for Authentication, RBAC, Audit Logging, Notifications, Files, Numbering, Settings, Approvals, and Webhooks.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8001/api
+    description: Core Service Local Direct
+  - url: http://localhost:8000/api/v1/core
+    description: Via Gateway Proxy
+
+paths:
+  /auth/login:
+    post:
+      summary: User Login
+      description: Rate-limited login with lockout after 5 attempts and RFC 6238 2FA challenge for mandatory roles.
+      responses:
+        '200':
+          description: Login successful or 2FA token issued.
+        '401':
+          description: Invalid credentials.
+        '423':
+          description: Account locked out.
+  /auth/2fa/verify:
+    post:
+      summary: Verify 2FA TOTP Code
+      responses:
+        '200':
+          description: Verified, personal access token returned.
+        '422':
+          description: Invalid 2FA code.
+  /auth/logout:
+    post:
+      summary: Revoke current session token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out.
+  /me:
+    get:
+      summary: Authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile returned.
+  /me/permissions:
+    get:
+      summary: List of permissions for Frontend permission guards
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Array of permission slugs.
+  /users:
+    get:
+      summary: List users with role filter and search
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create new user
+      security:
+        - bearerAuth: []
+  /users/{id}/impersonate:
+    post:
+      summary: Impersonate user (Super Admin / Director) with audit trail
+      security:
+        - bearerAuth: []
+  /roles:
+    get:
+      summary: List all roles and associated permission counts
+      security:
+        - bearerAuth: []
+  /permissions:
+    get:
+      summary: List all permissions grouped by module
+      security:
+        - bearerAuth: []
+  /audit-logs:
+    get:
+      summary: Search immutable audit trail
+      security:
+        - bearerAuth: []
+  /audit-logs/sensitive-access:
+    get:
+      summary: View access logs for sensitive data (salaries, margins)
+      security:
+        - bearerAuth: []
+  /notifications:
+    get:
+      summary: List user notifications with unread count
+      security:
+        - bearerAuth: []
+  /notifications/stream:
+    get:
+      summary: Server-Sent Events (SSE) notification stream
+  /files:
+    post:
+      summary: Upload file with virus scan and SHA-256 hash
+      security:
+        - bearerAuth: []
+  /approvals:
+    get:
+      summary: List pending approval workflows
+      security:
+        - bearerAuth: []
+    post:
+      summary: Submit approval workflow (serial/parallel)
+      security:
+        - bearerAuth: []
+  /approvals/{id}/decide:
+    post:
+      summary: Decide approval step (Approve/Reject) with Segregation of Duties check
+      security:
+        - bearerAuth: []
+  /settings:
+    get:
+      summary: List active system settings (cached)
+      security:
+        - bearerAuth: []
+  /numbering:
+    get:
+      summary: List numbering sequence patterns
+      security:
+        - bearerAuth: []
+  /webhooks:
+    get:
+      summary: List configured outbound webhooks
+      security:
+        - bearerAuth: []
+  /integrations:
+    get:
+      summary: List third-party integrations with masked credentials
+      security:
+        - bearerAuth: []
+

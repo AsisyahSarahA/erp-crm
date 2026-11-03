@@ -1,0 +1,12 @@
+{
+  "name": "astacode/hrd-service",
+  "type": "project",
+  "description": "ASTACODE HRD Microservice",
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/",
+      "Database\\Factories\\": "database/factories/",
+      "Database\\Seeders\\": "database/seeders/"
+    }
+  }
+}

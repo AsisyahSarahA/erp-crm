@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LeadCapturedEventPayload",
+  "type": "object",
+  "required": ["inquiry_id", "name", "contact_channel", "contact_value"],
+  "properties": {
+    "inquiry_id": { "type": "string" },
+    "name": { "type": "string" },
+    "company_name": { "type": ["string", "null"] },
+    "contact_channel": { "type": "string" },
+    "contact_value": { "type": "string" },
+    "source": { "type": "string" }
+  }
+}
+

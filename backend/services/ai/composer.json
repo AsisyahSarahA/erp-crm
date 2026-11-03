@@ -1,0 +1,12 @@
+{
+  "name": "astacode/ai-service",
+  "type": "project",
+  "description": "ASTACODE AI Microservice",
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/",
+      "Database\\Factories\\": "database/factories/",
+      "Database\\Seeders\\": "database/seeders/"
+    }
+  }
+}

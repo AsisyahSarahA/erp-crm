@@ -1,0 +1,73 @@
+name: Backend CI / CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  kernel-tests:
+    name: Shared Kernel Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, bcmath, openssl, pdo, pdo_sqlite
+          coverage: none
+
+      - name: Install Root Dependencies
+        run: |
+          cd backend
+          composer install --prefer-dist --no-progress
+
+      - name: Run Kernel Unit Tests
+        run: |
+          cd backend
+          php vendor/bin/phpunit --bootstrap shared/astacode-kernel/tests/bootstrap.php shared/astacode-kernel/tests/Unit
+
+  services-matrix:
+    name: Service Tests
+    needs: kernel-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ gateway, core, crm, marketing, hrd, pm, finance, ai, orchestrator ]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, bcmath, openssl, pdo, pdo_sqlite, pdo_mysql
+          coverage: none
+
+      - name: Install Root Dependencies
+        run: |
+          cd backend
+          composer install --prefer-dist --no-progress
+
+      - name: Verify Service Boot & Route List
+        run: |
+          if [ "${{ matrix.service }}" = "gateway" ]; then
+            cd backend/gateway
+          else
+            cd backend/services/${{ matrix.service }}
+          fi
+          php artisan route:list
+

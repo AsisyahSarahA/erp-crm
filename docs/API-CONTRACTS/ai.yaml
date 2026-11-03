@@ -1,0 +1,144 @@
+openapi: 3.1.0
+info:
+  title: ASTACODE AI Gateway Service API
+  description: Central AI Gateway for LLM provider abstraction, prompt registry, structured output validation, guardrails, media pipeline, and observability.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8007/api
+    description: AI Service Local Direct
+  - url: http://localhost:8000/api/v1/ai
+    description: Via Gateway Proxy
+
+paths:
+  /internal/ai/run:
+    post:
+      summary: Execute AI Generation
+      description: Central synchronous entrypoint for all microservices to generate structured AI completions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [module, purpose, payload]
+              properties:
+                module:
+                  type: string
+                  example: crm
+                purpose:
+                  type: string
+                  example: generate_rab
+                prompt_slug:
+                  type: string
+                  example: rab.estimator
+                payload:
+                  type: object
+                options:
+                  type: object
+                  properties:
+                    schema_name:
+                      type: string
+                      example: rab
+                    provider:
+                      type: string
+                      enum: [mock, gemini, claude, openai]
+                    redact_pii:
+                      type: boolean
+      responses:
+        '200':
+          description: AI completion successful, structured JSON output returned.
+        '400':
+          description: Blocked by guardrail (e.g. prompt injection attempt).
+        '429':
+          description: Monthly module budget exceeded.
+
+  /internal/ai/runs/{id}:
+    get:
+      summary: Get AI Run Details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Execution record with token usage, cost, latency, and output JSON.
+
+  /internal/ai/runs/{id}/decision:
+    post:
+      summary: Record Human-in-the-Loop Decision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [human_decision]
+              properties:
+                human_decision:
+                  type: string
+                  enum: [ACCEPTED, REJECTED, EDITED]
+                actual_mandays:
+                  type: number
+      responses:
+        '200':
+          description: Feedback recorded for accuracy tracking.
+
+  /prompts:
+    get:
+      summary: List Prompts
+      parameters:
+        - name: module
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of registered prompts.
+    post:
+      summary: Create Prompt (Auto Versioned)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, name, module, system_prompt, user_template]
+      responses:
+        '201':
+          description: Prompt version created.
+
+  /providers:
+    get:
+      summary: List AI Providers
+      description: Returns status and availability of Gemini, Claude, OpenAI, and Mock providers.
+      responses:
+        '200':
+          description: Providers list.
+
+  /metrics:
+    get:
+      summary: AI Observability & Performance Metrics
+      description: Returns accuracy MAPE, human acceptance rate, total tokens, and monthly expenditure.
+      responses:
+        '200':
+          description: Metrics summary.
+
+  /budgets:
+    get:
+      summary: List Module AI Budgets
+      responses:
+        '200':
+          description: Budgets and current spend per module.
+

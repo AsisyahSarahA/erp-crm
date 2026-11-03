@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DealWonEventPayload",
+  "type": "object",
+  "required": ["deal_id", "title", "contract_value", "customer"],
+  "properties": {
+    "deal_id": { "type": "string" },
+    "deal_code": { "type": "string" },
+    "title": { "type": "string" },
+    "contract_value": { "type": ["string", "number"] },
+    "customer": {
+      "type": "object",
+      "required": ["legal_name"],
+      "properties": {
+        "id": { "type": "string" },
+        "legal_name": { "type": "string" },
+        "npwp": { "type": "string" }
+      }
+    },
+    "wbs_modules": { "type": "array" },
+    "top_scheme": { "type": "array" },
+    "total_mandays": { "type": "number" }
+  }
+}
+
