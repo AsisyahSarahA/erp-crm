@@ -1,0 +1,464 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef0123456789",
+    "name": "ASTACODE ERP Orchestrator API",
+    "description": "Koleksi Postman resmi untuk ASTACODE ERP Orchestrator melalui API Gateway (`http://localhost:8000/api/v1`).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00. Gateway System",
+      "item": [
+        {
+          "name": "Gateway Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01. Core Service",
+      "item": [
+        {
+          "name": "Login (Sanctum SPA / API)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) {",
+                  "    pm.collectionVariables.set('token', res.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"director@astacode.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/core/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["core", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current Authenticated User (/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/core/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["core", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/core/users?page=1&per_page=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["core", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Roles & Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/core/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["core", "roles"]
+            }
+          }
+        },
+        {
+          "name": "Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/core/audit-logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["core", "audit-logs"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. CRM Service",
+      "item": [
+        {
+          "name": "List Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crm/leads?filter[stage]=NEW_LEAD&sort=-created_at",
+              "host": ["{{baseUrl}}"],
+              "path": ["crm", "leads"],
+              "query": [
+                { "key": "filter[stage]", "value": "NEW_LEAD" },
+                { "key": "sort", "value": "-created_at" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Lead (FR-CRM-01)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Aplikasi Manajemen Distribusi & Armada\",\n  \"project_type\": \"ERP_CUSTOM\",\n  \"source\": \"WEBSITE\",\n  \"sub_source\": \"Contact Form\",\n  \"est_value\": 150000000,\n  \"priority\": \"HIGH\",\n  \"contact_name\": \"Rudi Hartono\",\n  \"contact_phone\": \"+6281234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/crm/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["crm", "leads"]
+            }
+          }
+        },
+        {
+          "name": "List Customers 360",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/crm/customers",
+              "host": ["{{baseUrl}}"],
+              "path": ["crm", "customers"]
+            }
+          }
+        },
+        {
+          "name": "Master Lead Sources",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/crm/master/lead-sources",
+              "host": ["{{baseUrl}}"],
+              "path": ["crm", "master", "lead-sources"]
+            }
+          }
+        },
+        {
+          "name": "Master 43 Reusable Modules",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/crm/master/module-catalog",
+              "host": ["{{baseUrl}}"],
+              "path": ["crm", "master", "module-catalog"]
+            }
+          }
+        },
+        {
+          "name": "Master 22 MoU Articles (Lampiran H)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/crm/master/clauses",
+              "host": ["{{baseUrl}}"],
+              "path": ["crm", "master", "clauses"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Project Management Service",
+      "item": [
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pm/projects",
+              "host": ["{{baseUrl}}"],
+              "path": ["pm", "projects"]
+            }
+          }
+        },
+        {
+          "name": "Project Tasks Kanban",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pm/projects/1/tasks",
+              "host": ["{{baseUrl}}"],
+              "path": ["pm", "projects", "1", "tasks"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Finance Service",
+      "item": [
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/invoices",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "invoices"]
+            }
+          }
+        },
+        {
+          "name": "Record Payment & Accrual Journal (AC-FIN-01)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paid_amount\": 109000000,\n  \"payment_date\": \"2026-03-10\",\n  \"pph23_withheld\": 2000000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/invoices/1/pay",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "invoices", "1", "pay"]
+            }
+          }
+        },
+        {
+          "name": "Chart of Accounts (23 Akun Lampiran A)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/coa",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "coa"]
+            }
+          }
+        },
+        {
+          "name": "List Balanced Journals",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/journals",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "journals"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. HRD Service",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/hrd/employees",
+              "host": ["{{baseUrl}}"],
+              "path": ["hrd", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Daily Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/hrd/daily-logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["hrd", "daily-logs"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Marketing Service",
+      "item": [
+        {
+          "name": "List Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/marketing/campaigns",
+              "host": ["{{baseUrl}}"],
+              "path": ["marketing", "campaigns"]
+            }
+          }
+        },
+        {
+          "name": "Content Studio",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/marketing/contents",
+              "host": ["{{baseUrl}}"],
+              "path": ["marketing", "contents"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. AI Gateway Service",
+      "item": [
+        {
+          "name": "Execute Structured AI Run",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"module\": \"crm\",\n  \"purpose\": \"rab.estimator\",\n  \"payload\": {\n    \"project_type\": \"ERP_CUSTOM\",\n    \"scope_summary\": \"Aplikasi HRD 500 karyawan dan GPS geofence\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/run",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "run"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Orchestrator Service",
+      "item": [
+        {
+          "name": "Ingest Domain Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_name\": \"deal.won\",\n  \"aggregate_type\": \"deal\",\n  \"aggregate_id\": \"LD-2026-0022\",\n  \"payload\": {\n    \"deal_id\": \"LD-2026-0022\",\n    \"customer_id\": \"CUS-0001\",\n    \"deal_value\": 250000000\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/orchestrator/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["orchestrator", "events"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

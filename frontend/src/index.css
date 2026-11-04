@@ -1,1 +1,103 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    /* Semantic background & borders */
+    --bg-primary: #f8fafc;
+    --bg-secondary: #f1f5f9;
+    --bg-card: #ffffff;
+    --bg-sidebar: #0f172a;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+
+    /* Semantic text */
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --text-inverse: #f8fafc;
+
+    /* Status Colors */
+    --status-blue: #3b82f6;
+    --status-blue-bg: #eff6ff;
+    --status-purple: #8b5cf6;
+    --status-purple-bg: #f5f3ff;
+    --status-cyan: #06b6d4;
+    --status-cyan-bg: #ecfeff;
+    --status-amber: #f59e0b;
+    --status-amber-bg: #fffbeb;
+    --status-pink: #ec4899;
+    --status-pink-bg: #fdf2f8;
+    --status-emerald: #10b981;
+    --status-emerald-bg: #ecfdf5;
+    --status-red: #ef4444;
+    --status-red-bg: #fff1f2;
+    --status-orange: #f97316;
+    --status-orange-bg: #fff7ed;
+    --status-teal: #14b8a6;
+    --status-teal-bg: #f0fdfa;
+  }
+
+  .dark {
+    --bg-primary: #020617;
+    --bg-secondary: #0f172a;
+    --bg-card: #1e293b;
+    --bg-sidebar: #020617;
+    --border: #334155;
+    --border-light: #1e293b;
+
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-inverse: #0f172a;
+
+    --status-blue: #60a5fa;
+    --status-blue-bg: rgba(30, 58, 138, 0.35);
+    --status-purple: #a78bfa;
+    --status-purple-bg: rgba(88, 28, 135, 0.35);
+    --status-cyan: #22d3ee;
+    --status-cyan-bg: rgba(22, 78, 99, 0.35);
+    --status-amber: #fbbf24;
+    --status-amber-bg: rgba(120, 53, 15, 0.35);
+    --status-pink: #f472b6;
+    --status-pink-bg: rgba(131, 24, 67, 0.35);
+    --status-emerald: #34d399;
+    --status-emerald-bg: rgba(6, 78, 59, 0.35);
+    --status-red: #f87171;
+    --status-red-bg: rgba(136, 19, 55, 0.35);
+    --status-orange: #fb923c;
+    --status-orange-bg: rgba(124, 45, 18, 0.35);
+    --status-teal: #2dd4bf;
+    --status-teal-bg: rgba(19, 78, 74, 0.35);
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom Utilities for Design Tokens */
+.bg-app-primary { background-color: var(--bg-primary); }
+.bg-app-secondary { background-color: var(--bg-secondary); }
+.bg-app-card { background-color: var(--bg-card); }
+.bg-app-sidebar { background-color: var(--bg-sidebar); }
+
+.border-app { border-color: var(--border); }
+.border-app-light { border-color: var(--border-light); }
+
+.text-app-primary { color: var(--text-primary); }
+.text-app-secondary { color: var(--text-secondary); }
+.text-app-muted { color: var(--text-muted); }
+.text-app-inverse { color: var(--text-inverse); }
+
+/* Monospace text */
+.font-mono-numbers {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

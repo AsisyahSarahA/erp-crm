@@ -28,7 +28,7 @@ for svc in "${SERVICES[@]}"; do
         echo "Testing [${svc}]..."
         (
             cd "${SVC_PATH}"
-            php artisan test --parallel 2>/dev/null || php artisan test || true
+            php artisan test
         )
     fi
 done

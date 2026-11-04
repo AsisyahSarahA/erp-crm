@@ -6,11 +6,19 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-// Override App\ PSR-4 namespace to point to this service's local app directory
+// Override App\ and Database\Seeders\ PSR-4 namespace to point to this service's local directory
 spl_autoload_register(function ($class) {
     if (str_starts_with($class, 'App\\')) {
         $relativeClass = substr($class, 4);
         $file = __DIR__ . '/../app/' . str_replace('\\', '/', $relativeClass) . '.php';
+        if (file_exists($file)) {
+            require $file;
+            return true;
+        }
+    }
+    if (str_starts_with($class, 'Database\\Seeders\\')) {
+        $relativeClass = substr($class, 17);
+        $file = __DIR__ . '/../database/seeders/' . str_replace('\\', '/', $relativeClass) . '.php';
         if (file_exists($file)) {
             require $file;
             return true;

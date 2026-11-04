@@ -39,6 +39,18 @@ class UserSeeder extends Seeder
                 'phone' => '+628110000004',
             ],
             [
+                'name' => 'Dedi Presales Architect',
+                'email' => 'presales@astacode.com',
+                'role' => 'presales',
+                'phone' => '+628110000010',
+            ],
+            [
+                'name' => 'Maya Marketing Lead',
+                'email' => 'marketing@astacode.com',
+                'role' => 'marketing_lead',
+                'phone' => '+628110000011',
+            ],
+            [
                 'name' => 'Doni Project Manager',
                 'email' => 'pm@astacode.com',
                 'role' => 'project_manager',
@@ -49,6 +61,12 @@ class UserSeeder extends Seeder
                 'email' => 'finance@astacode.com',
                 'role' => 'finance_manager',
                 'phone' => '+628110000006',
+            ],
+            [
+                'name' => 'Indra Finance AR Specialist',
+                'email' => 'finance.ar@astacode.com',
+                'role' => 'finance_ar',
+                'phone' => '+628110000012',
             ],
             [
                 'name' => 'Fajar HRD Manager',
@@ -63,14 +81,26 @@ class UserSeeder extends Seeder
                 'phone' => '+628110000008',
             ],
             [
+                'name' => 'Joko Senior Developer',
+                'email' => 'developer@astacode.com',
+                'role' => 'developer',
+                'phone' => '+628110000013',
+            ],
+            [
+                'name' => 'Kiki QA Engineer',
+                'email' => 'qa@astacode.com',
+                'role' => 'qa',
+                'phone' => '+628110000014',
+            ],
+            [
                 'name' => 'Hani Legal Counsel',
                 'email' => 'legal@astacode.com',
                 'role' => 'legal_counsel',
                 'phone' => '+628110000009',
             ],
             [
-                'name' => 'Budi Santoso (Klien PT Maju)',
-                'email' => 'client@majusejahtera.co.id',
+                'name' => 'Budi Santoso (Klien PT Megah Nusantara)',
+                'email' => 'client@megahnusantara.co.id',
                 'role' => 'client',
                 'phone' => '+6281234567890',
                 'customer_id' => 'CUS-0001',
@@ -98,4 +128,3 @@ class UserSeeder extends Seeder
         }
     }
 }
-

@@ -1,0 +1,2155 @@
+openapi: 3.1.0
+info:
+  title: ASTACODE ERP Orchestrator Gateway API
+  description: |
+    Spesifikasi OpenAPI Terpadu ASTACODE ERP Orchestrator.
+    Semua panggilan frontend React dan integrasi eksternal diarahkan melalui API Gateway (`http://<host>:8000/api/v1`).
+    Gateway menangani verifikasi sesi Sanctum/JWT, penandatanganan request HMAC internal, penanganan error RFC 7807,
+    dan reverse proxy ke 8 microservice backend.
+  version: 1.0.0
+  contact:
+    name: ASTACODE Engineering Team
+    email: engineering@astacode.com
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Development API Gateway Proxy
+  - url: https://api.astacode.com/v1
+    description: Production API Gateway
+
+paths:
+  # ============================================================
+  # 0. GATEWAY SYSTEM
+  # ============================================================
+  /health:
+    get:
+      tags: [Gateway]
+      summary: Gateway Health Check
+      responses:
+        '200':
+          description: Gateway is running and operational
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayHealth'
+
+  # ============================================================
+  # 1. CORE SERVICE (/core/*)
+  # ============================================================
+  /core/auth/login:
+    post:
+      tags: [Core - Auth]
+      summary: User Login & 2FA Challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful or 2FA challenge required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /core/auth/2fa/verify:
+    post:
+      tags: [Core - Auth]
+      summary: Verify RFC 6238 TOTP Code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [two_factor_token, code]
+              properties:
+                two_factor_token:
+                  type: string
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: 2FA successful, API token issued
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /core/auth/me:
+    get:
+      tags: [Core - Auth]
+      summary: Get Current Authenticated User & Permissions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+  /core/auth/logout:
+    post:
+      tags: [Core - Auth]
+      summary: Revoke Session / Token
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+
+  /core/users:
+    get:
+      tags: [Core - Users]
+      summary: List System Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+        - $ref: '#/components/parameters/SearchQuery'
+      responses:
+        '200':
+          description: List of users with roles
+
+  /core/roles:
+    get:
+      tags: [Core - RBAC]
+      summary: List 14 Roles & Granular Permissions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All RBAC roles
+
+  /core/audit-logs:
+    get:
+      tags: [Core - Audit]
+      summary: Query Append-only Immutable Audit Logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+      responses:
+        '200':
+          description: Audit logs list
+
+  /core/settings:
+    get:
+      tags: [Core - Settings]
+      summary: Get System & Company Settings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Global configuration settings
+
+  # ============================================================
+  # 2. CRM SERVICE (/crm/*)
+  # ============================================================
+  /crm/public/lead-capture:
+    post:
+      tags: [CRM - Leads]
+      summary: Public Lead Capture for Inbound Web Forms (FR-CRM-01)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+                company_name:
+                  type: string
+                project_title:
+                  type: string
+                budget:
+                  type: number
+                utm_source:
+                  type: string
+      responses:
+        '201':
+          description: Lead captured and queued for follow-up
+
+  /crm/leads:
+    get:
+      tags: [CRM - Leads]
+      summary: List Leads with Filter, Sort, Search, and Pagination
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+        - $ref: '#/components/parameters/SearchQuery'
+        - name: filter[stage]
+          in: query
+          schema:
+            type: string
+            enum: [NEW_LEAD, FOLLOW_UP, REQUIREMENT, QUOTATION, NEGOTIATION, DEAL_WON, LOST]
+        - name: filter[priority]
+          in: query
+          schema:
+            type: string
+            enum: [HOT, HIGH, MEDIUM, LOW]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            example: "-created_at"
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadListResponse'
+
+    post:
+      tags: [CRM - Leads]
+      summary: Create New Lead & Auto-Upsert Customer (FR-CRM-01)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeadInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadSingleResponse'
+        '409':
+          description: Duplicate customer detected (Tautkan / Buat baru / Gabung)
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /crm/leads/export:
+    get:
+      tags: [CRM - Leads]
+      summary: Export Leads to CSV
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: CSV stream
+
+  /crm/leads/bulk-assign:
+    post:
+      tags: [CRM - Leads]
+      summary: Bulk Reassign Leads to Sales Rep
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Leads assigned
+
+  /crm/leads/bulk-tags:
+    post:
+      tags: [CRM - Leads]
+      summary: Bulk Update Tags on Leads
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tags updated
+
+  /crm/leads/bulk-delete:
+    post:
+      tags: [CRM - Leads]
+      summary: Bulk Soft Delete Leads
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Leads deleted
+
+  /crm/leads/{id}:
+    get:
+      tags: [CRM - Leads]
+      summary: Get Lead Detail with Customer 360 & Quotations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadSingleResponse'
+
+    put:
+      tags: [CRM - Leads]
+      summary: Update Lead Stage / Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stage:
+                  type: string
+                priority:
+                  type: string
+                est_value:
+                  type: number
+                win_probability:
+                  type: integer
+      responses:
+        '200':
+          description: Lead updated successfully
+
+    delete:
+      tags: [CRM - Leads]
+      summary: Soft Delete Lead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lead deleted
+
+  /crm/leads/{id}/stage:
+    patch:
+      tags: [CRM - Leads]
+      summary: Transition Lead Pipeline Stage via PipelineTransitionGuard (FR-CRM-24)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage]
+              properties:
+                stage:
+                  type: string
+                  enum: [new_lead, follow_up, requirement, quotation, negotiation, deal, reject]
+                reason:
+                  type: string
+                override:
+                  type: boolean
+                reject_reason_code:
+                  type: string
+                reject_reason_id:
+                  type: integer
+                reject_notes:
+                  type: string
+                trigger_source:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadSingleResponse'
+        '403':
+          description: Forbidden Super Admin Override or Reopen
+        '422':
+          description: Pipeline Transition Guard Failure (includes guard_failure and deep_link_tab)
+
+  /crm/leads/{id}/reopen:
+    post:
+      tags: [CRM - Leads]
+      summary: Reopen Rejected Lead by Sales Manager (FR-CRM-10)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lead reopened to Follow Up stage
+        '403':
+          description: Forbidden for non-managers
+
+  /crm/leads/{id}/checklists:
+    get:
+      tags: [CRM - Leads]
+      summary: Get Mandatory Stage Activity Checklists & Progress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stage checklists and lead progress
+
+  /crm/leads/{id}/checklists/{checklistId}/toggle:
+    post:
+      tags: [CRM - Leads]
+      summary: Toggle Completion Status of a Stage Checklist Item
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: checklistId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Checklist completion updated
+
+  /crm/leads/{id}/next-actions:
+    get:
+      tags: [CRM - Leads]
+      summary: Get Next Best Action Recommendations (Rule Engine + AI Gateway)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Next best actions and AI insights
+
+  /crm/leads/{id}/audit-logs:
+    get:
+      tags: [CRM - Leads]
+      summary: Get Immutable Audit Logs for Stage, Value, Discount, and TOP Changes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Immutable CRM audit log entries
+
+  /crm/leads/{id}/activities:
+    get:
+      tags: [CRM - Activities]
+      summary: Get Activities for a Specific Lead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of lead activities
+    post:
+      tags: [CRM - Activities]
+      summary: Create Activity for a Specific Lead (FR-CRM-04)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, title, start_at]
+              properties:
+                type:
+                  type: string
+                  enum: [MEETING, CALL, FOLLOW_UP, EMAIL, WHATSAPP, DEMO, SITE_VISIT, TASK, NOTE]
+                title:
+                  type: string
+                notes:
+                  type: string
+                start_at:
+                  type: string
+                  format: date-time
+                end_at:
+                  type: string
+                  format: date-time
+                location:
+                  type: string
+                link:
+                  type: string
+                create_meet:
+                  type: boolean
+                attendees:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '201':
+          description: Activity created with meet link if requested
+
+  /crm/activities:
+    get:
+      tags: [CRM - Activities]
+      summary: List Activities with Filters & Search
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated activities
+    post:
+      tags: [CRM - Activities]
+      summary: Create New Standalone Activity
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, title, start_at]
+      responses:
+        '201':
+          description: Activity created
+
+  /crm/activities/calendar:
+    get:
+      tags: [CRM - Activities]
+      summary: Get Calendar Activities for Date Range (FR-CRM-04)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+        - name: end_date
+          in: query
+          schema:
+            type: string
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [mine, team, all]
+      responses:
+        '200':
+          description: Calendar event items formatted for UI
+
+  /crm/activities/{id}:
+    get:
+      tags: [CRM - Activities]
+      summary: Get Activity Detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Activity detail
+    patch:
+      tags: [CRM - Activities]
+      summary: Update Activity Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Activity updated
+    delete:
+      tags: [CRM - Activities]
+      summary: Delete Activity
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Activity deleted
+
+  /crm/activities/{id}/complete:
+    post:
+      tags: [CRM - Activities]
+      summary: Mark Activity as Completed with Required Outcome (FR-CRM-04)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome:
+                  type: string
+                  enum: [berhasil, reschedule, tidak_merespons, SUCCESS, RESCHEDULE, NO_RESPONSE]
+                outcome_notes:
+                  type: string
+                next_step:
+                  type: string
+                next_activity:
+                  type: object
+      responses:
+        '200':
+          description: Activity completed and optional next activity created
+        '422':
+          description: Outcome is required
+
+  /crm/activities/{id}/reschedule:
+    post:
+      tags: [CRM - Activities]
+      summary: Reschedule Activity Start & End Times
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_at]
+      responses:
+        '200':
+          description: Activity rescheduled
+
+  /crm/activities/{id}/recording:
+    post:
+      tags: [CRM - Activities]
+      summary: Attach Audio/Video Recording or Transcript
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recording or transcript saved
+
+  /crm/activities/{id}/ai-notes:
+    post:
+      tags: [CRM - Activities]
+      summary: Generate AI Meeting Notes from Transcript (FR-CRM-04)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: AI meeting notes with summary, decisions, action items
+
+  /crm/activities/{id}/push-to-requirement:
+    post:
+      tags: [CRM - Activities]
+      summary: Push Meeting Notes to Lead Requirement Draft
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notes pushed to requirement
+
+  /crm/integrations/google/status:
+    get:
+      tags: [CRM - Integrations]
+      summary: Check Google Calendar Connection Status
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Connection status
+
+  /crm/integrations/google/auth-url:
+    get:
+      tags: [CRM - Integrations]
+      summary: Get Google OAuth Authorization URL
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Auth URL and scope
+
+  /crm/integrations/google/callback:
+    post:
+      tags: [CRM - Integrations]
+      summary: Google OAuth Callback Exchange
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tokens exchanged and calendar connected
+
+  /crm/integrations/google/disconnect:
+    post:
+      tags: [CRM - Integrations]
+      summary: Disconnect Google Calendar Integration
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Disconnected
+
+  /crm/webhooks/google-calendar:
+    post:
+      tags: [CRM - Integrations]
+      summary: Webhook for Google Calendar Push Notifications
+      responses:
+        '200':
+          description: Webhook received and synchronized
+
+  /crm/leads/{id}/requirements:
+    get:
+      tags: [CRM - Requirements & AI RAB]
+      summary: List Requirement Versions, Files, AI Runs & RAB Drafts for Lead (FR-CRM-05)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Requirement versions and active RAB draft
+    post:
+      tags: [CRM - Requirements & AI RAB]
+      summary: Upload Requirement Prompt and/or Files (Doc/Audio/Image <= 25MB, Antivirus, PII Redaction, Auto-Transition to Requirement Stage)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Requirement version created
+        '422':
+          description: Validation or antivirus scan failure
+
+  /crm/leads/{id}/requirements/generate:
+    post:
+      tags: [CRM - Requirements & AI RAB]
+      summary: Trigger AI Generate RAB Async Job (FR-CRM-05, BR-CRM-10, AC-CRM-03)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Requirement version saved and GenerateRabJob dispatched
+
+  /crm/leads/{id}/requirements/{requirementId}/use-as-rab:
+    post:
+      tags: [CRM - Requirements & AI RAB]
+      summary: Human-in-the-Loop Action - Gunakan sebagai RAB (Clones AI RAB Draft into Editable Active RAB Version without Touching Quotation)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: New editable RAB version created from AI draft
+
+  /crm/leads/{id}/requirements/{requirementId}/merge-to-rab:
+    post:
+      tags: [CRM - Requirements & AI RAB]
+      summary: Human-in-the-Loop Action - Gabungkan (Merge) ke RAB Saat Ini (Preserves Previous RAB Version)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: requirementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: New merged RAB version created
+
+  /crm/rab/recalculate:
+    post:
+      tags: [CRM - RAB Engine]
+      summary: Authoritative Stateless RAB Calculation Preview (Subtotal, Contingency, Discount, DPP, PPN, Terbilang, Margin Dual-View)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Calculated RAB summary and line items
+
+  /crm/leads/{id}/rab:
+    get:
+      tags: [CRM - RAB Engine]
+      summary: Get Active or Specific RAB Version for Lead with Dual-View Margin Filtering (FR-CRM-06, BR-CRM-07, AC-CRM-07)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Active RAB version and items
+    put:
+      tags: [CRM - RAB Engine]
+      summary: Bulk Upsert RAB Items with Optimistic Locking (`version`), AI->MANUAL Badge Transition (AC-CRM-04) & Approval Tier Evaluation (FR-CRM-17)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: RAB saved and new version snapshot created
+        '409':
+          description: Optimistic lock version conflict
+        '422':
+          description: Validation error (e.g. contingency < 5% without reason)
+
+  /crm/leads/{id}/rab/recalculate:
+    post:
+      tags: [CRM - RAB Engine]
+      summary: Recalculate RAB Totals & Margin for Lead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recalculated RAB summary
+
+  /crm/leads/{id}/rab/autosave:
+    patch:
+      tags: [CRM - RAB Engine]
+      summary: Auto-Save RAB Draft In-Place Without Incrementing Version
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Draft autosaved
+
+  /crm/leads/{id}/rab/versions:
+    get:
+      tags: [CRM - RAB Engine]
+      summary: List RAB Version History for Lead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of RAB versions
+
+  /crm/leads/{id}/rab/diff:
+    get:
+      tags: [CRM - RAB Engine]
+      summary: Compare Two RAB Versions (Qty, Unit Price, Subtotal & Summary Diff)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Structured version diff
+
+  /crm/leads/{id}/rab/import-catalog:
+    post:
+      tags: [CRM - RAB Engine]
+      summary: Import Modules from Template Catalog into RAB (`origin = TEMPLATE`)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Catalog modules imported
+
+  /crm/leads/{id}/rab/import-excel:
+    post:
+      tags: [CRM - RAB Engine]
+      summary: Import RAB Items from Excel/CSV File or Rows Array
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Excel items imported
+
+  /crm/leads/{id}/rab/export-excel:
+    get:
+      tags: [CRM - RAB Engine]
+      summary: Export RAB to Excel/CSV (Respects Dual-View `crm.margin.view` Permission)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CSV stream download
+
+  /crm/leads/{id}/rab/items/{itemId}/duplicate:
+    post:
+      tags: [CRM - RAB Engine]
+      summary: Duplicate a RAB Item Row and Recalculate
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Item duplicated
+
+  /crm/leads/{id}/rab/reorder:
+    post:
+      tags: [CRM - RAB Engine]
+      summary: Reorder RAB Item Rows
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Items reordered
+
+  /crm/leads/{id}/rab/approve:
+    post:
+      tags: [CRM - RAB Engine]
+      summary: Approve or Reject RAB Discount/Margin/High-Value Request (FR-CRM-17 + SoD Check)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Approval decision recorded
+        '403':
+          description: Role tier insufficient or Segregation of Duties violation
+
+  /crm/top/lock:
+    post:
+      tags: [CRM - TOP / Termin Pembayaran]
+      summary: Lock TOP Scheme by Finance AR (FR-CRM-07, BR-CRM-18)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: TOP locked by Finance AR
+        '403':
+          description: Forbidden for non-Finance roles
+
+  /crm/top/approve-change:
+    post:
+      tags: [CRM - TOP / Termin Pembayaran]
+      summary: Approve or Reject Change to Finance-Locked TOP Scheme (BR-CRM-18)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Change decision recorded
+
+  /crm/leads/{id}/top:
+    get:
+      tags: [CRM - TOP / Termin Pembayaran]
+      summary: Get TOP Scheme & Milestones for Lead (FR-CRM-07)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: TOP scheme details
+    put:
+      tags: [CRM - TOP / Termin Pembayaran]
+      summary: Upsert TOP Scheme & Milestones (Presets 30/40/30, 50/50, 20/30/30/20, 40/30/20/10 Retention, Recurring, Custom; Percent<->Nominal Sync; Rounding Absorption; Balance Check)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: TOP scheme saved
+        '422':
+          description: Unbalanced final save or locked by Finance AR requiring approval
+
+  /crm/leads/{id}/top/lock:
+    post:
+      tags: [CRM - TOP / Termin Pembayaran]
+      summary: Review & Lock Lead TOP Scheme by Finance AR (BR-CRM-18)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: TOP scheme locked by Finance AR
+        '403':
+          description: Forbidden for non-Finance roles
+
+  /crm/leads/{id}/top/approve-change:
+    post:
+      tags: [CRM - TOP / Termin Pembayaran]
+      summary: Finance Approval for Modification on Locked TOP Scheme (BR-CRM-18)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Locked TOP change approved and applied
+
+  /crm/leads/{id}/top/receivable-schedule:
+    get:
+      tags: [CRM - TOP / Termin Pembayaran]
+      summary: Generate Receivable Schedule for Finance from Lead TOP Scheme
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receivable schedule
+
+  /crm/pipeline-stages:
+    get:
+      tags: [CRM - Leads]
+      summary: Get Pipeline Stages Default Probabilities & SLA Config
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pipeline stages configuration
+
+  /crm/pipeline-stages/{code}:
+    put:
+      tags: [CRM - Leads]
+      summary: Update Stage Win Probability & SLA Hours (Admin)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stage configuration updated
+
+  /crm/saved-views:
+    get:
+      tags: [CRM - Views]
+      summary: List Saved Views for Current User
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Saved views
+    post:
+      tags: [CRM - Views]
+      summary: Create Saved View
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Saved view created
+
+  /crm/customers:
+    get:
+      tags: [CRM - Customers]
+      summary: List Master Customers 360
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+        - $ref: '#/components/parameters/SearchQuery'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerListResponse'
+    post:
+      tags: [CRM - Customers]
+      summary: Create Master Customer with Duplicate Guard (AC-CRM-02)
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Customer created
+        '409':
+          description: Duplicate customer detected (Tautkan / Buat baru / Gabung)
+
+  /crm/customers/duplicates-check:
+    post:
+      tags: [CRM - Customers]
+      summary: Check Duplicate Customer by Phone WA (E.164), Email, or Fuzzy Company Name (>=85%)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Duplicate check result
+
+  /crm/customers/export:
+    get:
+      tags: [CRM - Customers]
+      summary: Export Customers to CSV / Excel
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: CSV export stream
+
+  /crm/customers/import:
+    post:
+      tags: [CRM - Customers]
+      summary: Import Customers from CSV / Excel
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Import summary
+
+  /crm/customers/{id}:
+    get:
+      tags: [CRM - Customers]
+      summary: Get Customer Profile with Contacts & Deals (NPWP masked per role)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer details
+    put:
+      tags: [CRM - Customers]
+      summary: Update Customer Profile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer updated
+    delete:
+      tags: [CRM - Customers]
+      summary: Soft Delete Customer
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer deleted
+
+  /crm/customers/{id}/360:
+    get:
+      tags: [CRM - Customers]
+      summary: Get Full Customer 360 View (Profile, Legal/Tax, Attribution, Stakeholder Matrix, History, Financials, Health Score, Account Plan)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer 360 data
+
+  /crm/customers/{id}/merge:
+    post:
+      tags: [CRM - Customers]
+      summary: Merge Duplicate Customer into Master Customer Preserving History (BR-CRM-09)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customers merged
+
+  /crm/customers/{id}/verify-npwp:
+    post:
+      tags: [CRM - Customers]
+      summary: Verify Customer 16-Digit NPWP by Finance AR Specialist
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: NPWP verified
+        '403':
+          description: Forbidden for non-Finance roles
+
+  /crm/customers/{id}/anonymize:
+    post:
+      tags: [CRM - Customers]
+      summary: Anonymize Customer & Contact PII per UU PDP Request
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer anonymized and audited
+
+  /crm/customers/{customerId}/contacts:
+    get:
+      tags: [CRM - Contacts]
+      summary: List Stakeholder Contacts for Customer
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer contacts
+    post:
+      tags: [CRM - Contacts]
+      summary: Create Contact on Customer (BR-CRM-09 Unique WA/Email)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Contact created
+
+  /crm/lead-sources:
+    get:
+      tags: [CRM - Master]
+      summary: List Lead Sources & Channel Groups
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lead sources list
+    post:
+      tags: [CRM - Master]
+      summary: Create Lead Source
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Lead source created
+
+  /crm/custom-fields:
+    get:
+      tags: [CRM - Master]
+      summary: List Custom Field Definitions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Custom field definitions
+    post:
+      tags: [CRM - Master]
+      summary: Upsert Custom Field Definition
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Custom field saved
+
+  /crm/quotations:
+    get:
+      tags: [CRM - Quotations]
+      summary: List Quotations
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Quotations list
+
+    post:
+      tags: [CRM - Quotations]
+      summary: Create Quotation & Calculate RAB (FR-CRM-06/07)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lead_id, subtotal]
+              properties:
+                lead_id:
+                  type: integer
+                subtotal:
+                  type: number
+                discount_pct:
+                  type: number
+                contingency_pct:
+                  type: number
+      responses:
+        '201':
+          description: Quotation generated
+
+  /crm/master/lead-sources:
+    get:
+      tags: [CRM - Master Data]
+      summary: List FR-CRM-01 Lead Sources
+      responses:
+        '200':
+          description: Lead sources
+
+  /crm/master/rejection-reasons:
+    get:
+      tags: [CRM - Master Data]
+      summary: List FR-CRM-10 Rejection Reasons
+      responses:
+        '200':
+          description: Rejection reasons
+
+  /crm/master/module-catalog:
+    get:
+      tags: [CRM - Master Data]
+      summary: List Reusable Software Modules (≥ 40 modules)
+      responses:
+        '200':
+          description: Module catalog with mandays
+
+  /crm/master/clauses:
+    get:
+      tags: [CRM - Master Data]
+      summary: List 22 Standard MoU Articles (Lampiran H)
+      responses:
+        '200':
+          description: Contract clauses
+
+  # ============================================================
+  # 3. PROJECT MANAGEMENT SERVICE (/pm/*)
+  # ============================================================
+  /pm/projects:
+    get:
+      tags: [PM - Projects]
+      summary: List Active and Provisioned Projects
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+
+  /pm/projects/{id}:
+    get:
+      tags: [PM - Projects]
+      summary: Get Project Detail with Milestones & WBS Backlog
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Project detail
+
+  /pm/projects/{id}/tasks:
+    get:
+      tags: [PM - Tasks]
+      summary: List Project Kanban Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tasks list
+
+  # ============================================================
+  # 4. FINANCE SERVICE (/finance/*)
+  # ============================================================
+  /finance/invoices:
+    get:
+      tags: [Finance - Invoices]
+      summary: List Invoices with AR Aging & Payment Status
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, ISSUED, PAID, OVERDUE, CANCELLED]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceListResponse'
+
+  /finance/invoices/{id}/pay:
+    post:
+      tags: [Finance - Invoices]
+      summary: Record Invoice Payment & Create Accrual Journal (AC-FIN-01)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paid_amount, payment_date]
+              properties:
+                paid_amount:
+                  type: number
+                payment_date:
+                  type: string
+                  format: date
+                pph23_withheld:
+                  type: number
+      responses:
+        '200':
+          description: Invoice paid and balanced journals posted
+
+  /finance/coa:
+    get:
+      tags: [Finance - COA]
+      summary: List 23 Chart of Accounts (Lampiran A)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: COA accounts
+
+  /finance/journals:
+    get:
+      tags: [Finance - Journals]
+      summary: List General Journal Entries (Balanced Debit = Credit)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+      responses:
+        '200':
+          description: General journals
+
+  # ============================================================
+  # 5. HRD SERVICE (/hrd/*)
+  # ============================================================
+  /hrd/employees:
+    get:
+      tags: [HRD - Employees]
+      summary: List Employees (Tetap, Freelance, PKL)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeListResponse'
+
+  /hrd/attendances:
+    get:
+      tags: [HRD - Attendance]
+      summary: Query Attendance Records
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Attendance records
+
+  /hrd/daily-logs:
+    get:
+      tags: [HRD - Daily Logs]
+      summary: Query Progress-driven Daily Logs Linked to PM Tasks
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daily logs
+
+  # ============================================================
+  # 6. MARKETING SERVICE (/marketing/*)
+  # ============================================================
+  /marketing/campaigns:
+    get:
+      tags: [Marketing - Campaigns]
+      summary: List Marketing Campaigns & ROI
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Campaigns
+
+  /marketing/contents:
+    get:
+      tags: [Marketing - Content Studio]
+      summary: List Carousel, Reels, and Blog Contents
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Content studio items
+
+  # ============================================================
+  # 7. AI GATEWAY SERVICE (/ai/*)
+  # ============================================================
+  /ai/run:
+    post:
+      tags: [AI - Gateway]
+      summary: Synchronous Structured AI Completion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [module, purpose, payload]
+              properties:
+                module:
+                  type: string
+                purpose:
+                  type: string
+                payload:
+                  type: object
+      responses:
+        '200':
+          description: AI output validated against JSON schema
+
+  # ============================================================
+  # 8. ORCHESTRATOR SERVICE (/orchestrator/*)
+  # ============================================================
+  /orchestrator/events:
+    post:
+      tags: [Orchestrator - Event Bus]
+      summary: Ingest Domain Event from Outbox Relay
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_name, aggregate_type, aggregate_id, payload]
+              properties:
+                event_name:
+                  type: string
+                aggregate_type:
+                  type: string
+                aggregate_id:
+                  type: string
+                payload:
+                  type: object
+      responses:
+        '202':
+          description: Event accepted for async distribution
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PageQuery:
+      name: page
+      in: query
+      description: Current page number (default 1)
+      schema:
+        type: integer
+        default: 1
+    PerPageQuery:
+      name: per_page
+      in: query
+      description: Items per page (default 15, max 100)
+      schema:
+        type: integer
+        default: 15
+    SearchQuery:
+      name: search
+      in: query
+      description: Free-text search term
+      schema:
+        type: string
+
+  responses:
+    UnauthorizedError:
+      description: Authentication token missing or invalid
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ApiProblemDetails'
+    ValidationError:
+      description: Form Request validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ApiProblemDetails'
+
+  schemas:
+    GatewayHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "UP"
+        service:
+          type: string
+          example: "astacode-gateway"
+        timestamp:
+          type: string
+
+    ApiProblemDetails:
+      type: object
+      required: [type, title, status, detail]
+      properties:
+        type:
+          type: string
+          example: "https://astacode.com/errors/validation-failed"
+        title:
+          type: string
+          example: "Unprocessable Entity"
+        status:
+          type: integer
+          example: 422
+        detail:
+          type: string
+          example: "Form validation failed."
+        instance:
+          type: string
+          example: "/api/v1/crm/leads"
+        correlation_id:
+          type: string
+          example: "9a2f1b4d-1234-4567-89ab-cdef01234567"
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+        requires_2fa:
+          type: boolean
+        two_factor_token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    Lead:
+      type: object
+      properties:
+        id:
+          type: integer
+        lead_code:
+          type: string
+          example: "LD-2026-0001"
+        customer_id:
+          type: integer
+        title:
+          type: string
+        project_type:
+          type: string
+        priority:
+          type: string
+          enum: [HOT, HIGH, MEDIUM, LOW]
+        stage:
+          type: string
+          enum: [NEW_LEAD, FOLLOW_UP, REQUIREMENT, QUOTATION, NEGOTIATION, DEAL_WON, LOST]
+        source:
+          type: string
+        est_value:
+          type: number
+        win_probability:
+          type: integer
+        sales_pic_name:
+          type: string
+        created_at:
+          type: string
+
+    CreateLeadInput:
+      type: object
+      required: [title, project_type, source, est_value]
+      properties:
+        title:
+          type: string
+        project_type:
+          type: string
+        source:
+          type: string
+        sub_source:
+          type: string
+        est_value:
+          type: number
+        priority:
+          type: string
+          default: "MEDIUM"
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        customer_id:
+          type: integer
+
+    LeadSingleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Lead'
+
+    LeadListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lead'
+        meta:
+          type: object
+          properties:
+            current_page:
+              type: integer
+            last_page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        customer_code:
+          type: string
+        legal_name:
+          type: string
+        brand_name:
+          type: string
+        customer_type:
+          type: string
+        industry:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        health_score:
+          type: integer
+
+    CustomerListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        project_code:
+          type: string
+          example: "PRJ-001"
+        customer_name:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        health:
+          type: string
+        contract_value:
+          type: number
+        budget_mandays:
+          type: integer
+        consumed_mandays:
+          type: number
+        start_date:
+          type: string
+        target_end_date:
+          type: string
+
+    ProjectListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoice_number:
+          type: string
+          example: "INV/2026/02/0001"
+        customer_name:
+          type: string
+        project_title:
+          type: string
+        term_number:
+          type: integer
+        term_name:
+          type: string
+        dpp_amount:
+          type: number
+        vat_amount:
+          type: number
+        total_bill:
+          type: number
+        net_cash_receivable:
+          type: number
+        status:
+          type: string
+          enum: [DRAFT, ISSUED, PAID, OVERDUE, CANCELLED]
+        issue_date:
+          type: string
+        due_date:
+          type: string
+
+    InvoiceListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+        nik:
+          type: string
+          example: "EMP-0001"
+        full_name:
+          type: string
+        email:
+          type: string
+        employment_status:
+          type: string
+        job_title:
+          type: string
+        department:
+          type: string
+        technical_role:
+          type: string
+
+    EmployeeListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Employee'
+

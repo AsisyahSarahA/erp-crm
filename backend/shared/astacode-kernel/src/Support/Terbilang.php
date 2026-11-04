@@ -7,7 +7,7 @@ namespace Astacode\Kernel\Support;
 /**
  * Class Terbilang
  * Converts numeric values to Indonesian grammatical number words.
- * Handles millions, billions, trillions, and monetary suffixes (Rupiah).
+ * Handles single digits up to trillions, negative amounts, cents (sen), and monetary suffixes (Rupiah).
  */
 final class Terbilang
 {
@@ -27,16 +27,19 @@ final class Terbilang
     ];
 
     /**
-     * Converts a number to Indonesian words.
+     * Converts a number to Indonesian grammatical words.
      */
     public static function make(string|int|float $number): string
     {
         $clean = self::cleanNumber($number);
-        if ($clean === '0') {
+        $parts = explode('.', $clean);
+        $integerPart = intval($parts[0]);
+
+        if ($integerPart === 0) {
             return 'Nol';
         }
 
-        return trim(self::convertInteger(intval($clean)));
+        return trim(self::convertInteger($integerPart));
     }
 
     /**
@@ -54,7 +57,14 @@ final class Terbilang
             return $titleCase ? 'Nol Rupiah' : 'nol rupiah';
         }
 
-        $result = self::convertInteger($integerPart) . ' Rupiah';
+        $result = '';
+        if ($integerPart < 0) {
+            $result = 'Minus ' . self::convertInteger(abs($integerPart)) . ' Rupiah';
+        } elseif ($integerPart === 0) {
+            $result = 'Nol Rupiah';
+        } else {
+            $result = self::convertInteger($integerPart) . ' Rupiah';
+        }
 
         if ($decimalPart > 0) {
             $result .= ' ' . self::convertInteger($decimalPart) . ' Sen';
@@ -63,6 +73,23 @@ final class Terbilang
         $result = preg_replace('/\s+/', ' ', trim($result));
 
         return $titleCase ? ucwords(strtolower($result)) : strtolower($result);
+    }
+
+    /**
+     * Converts to sentence case (Capital first letter only).
+     */
+    public static function kalimat(string|int|float $amount): string
+    {
+        $text = self::rupiah($amount, false);
+        return ucfirst($text);
+    }
+
+    /**
+     * Converts to uppercase words.
+     */
+    public static function uppercase(string|int|float $amount): string
+    {
+        return strtoupper(self::rupiah($amount, false));
     }
 
     private static function convertInteger(int $number): string
@@ -120,7 +147,8 @@ final class Terbilang
             return number_format($number, 2, '.', '');
         }
 
-        $clean = preg_replace('/[^\d.,-]/', '', $number);
+        $clean = trim((string) $number);
+        $clean = preg_replace('/[^\d.,-]/', '', $clean);
 
         // If multiple dots (e.g. 92.966.940), dots are thousand separators
         if (substr_count($clean, '.') > 1) {
@@ -128,7 +156,11 @@ final class Terbilang
             if (str_contains($clean, ',')) {
                 $clean = str_replace(',', '.', $clean);
             }
+        } elseif (substr_count($clean, ',') > 1) {
+            // Commas as thousand separators (e.g. 92,966,940)
+            $clean = str_replace(',', '', $clean);
         } elseif (str_contains($clean, ',') && str_contains($clean, '.')) {
+            // Determine decimal vs thousand
             if (strrpos($clean, ',') > strrpos($clean, '.')) {
                 $clean = str_replace('.', '', $clean);
                 $clean = str_replace(',', '.', $clean);
@@ -136,6 +168,7 @@ final class Terbilang
                 $clean = str_replace(',', '', $clean);
             }
         } elseif (str_contains($clean, ',')) {
+            // Single comma: in Indonesian financial notation, e.g. "1500000,50" -> comma is decimal
             $clean = str_replace(',', '.', $clean);
         }
 
